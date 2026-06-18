@@ -6,9 +6,9 @@ HARP is a production-grade RAG application that lets analysts query SEC filings 
 
 ## What's New vs. Document Copilot
 
-| Capability | After |
+| Capability |  |
 |---|---|
-| Embeddings |  `BGE-small-en-v1.5` (local, free) |
+| Embeddings | `BGE-small-en-v1.5` (local, free) |
 | Sparse retrieval | BM25 (`rank_bm25`) |
 | Reranking | Cross-encoder (`ms-marco-MiniLM-L-6-v2`) |
 | LLM providers | Phi-3, Mistral 7B, Llama 3 8B + OpenAI fallback |
@@ -45,37 +45,39 @@ HARP is a production-grade RAG application that lets analysts query SEC filings 
 
 ```mermaid
 flowchart LR
-    user[Analyst] --> browser[Browser\nReact SPA]
+    user[Analyst] --> browser[Browser React SPA]
 
     subgraph railway[Railway]
-        frontend[Frontend\nVite + Caddy]
-        backend[Backend\nFastAPI]
+        frontend[Frontend Vite and Caddy]
+        backend[Backend FastAPI]
     end
 
     subgraph supabase[Supabase]
-        auth[Auth\nemail session]
-        db[(Postgres\nchats · docs · chunks\npgvector + FTS)]
+        auth[Auth email session]
+        db[(Postgres chats and docs and chunks pgvector and FTS)]
     end
 
-    subgraph local[Local / Ollama]
-        phi3[Phi-3\nsimple queries]
-        mistral[Mistral 7B\nmedium queries]
-        llama3[Llama 3 8B\ncomplex queries]
-        bge[BGE-small\nembeddings]
-        reranker[Cross-encoder\nms-marco-MiniLM]
+    subgraph local[Local Ollama]
+        phi3[Phi-3 simple queries]
+        mistral[Mistral 7B medium queries]
+        llama3[Llama 3 8B complex queries]
+        bge[BGE-small embeddings]
+        reranker[Cross-encoder ms-marco-MiniLM]
     end
 
-    openai[OpenAI\nfallback LLM]
-    langsmith[LangSmith\ntracing]
-    mcp_client[MCP client\nClaude Desktop · Cursor · VS Code]
+    openai[OpenAI fallback LLM]
+    langsmith[LangSmith tracing]
+    mcp_client[MCP client Claude Desktop and Cursor and VS Code]
 
     frontend -->|serves app| browser
     browser -->|sign in| auth
     auth -->|JWT| browser
-    browser -->|chat + JWT| backend
+    browser -->|chat with JWT| backend
     backend -->|verify user| auth
-    backend -->|retrieve + persist| db
-    backend -->|route query| phi3 & mistral & llama3
+    backend -->|retrieve and persist| db
+    backend -->|route query| phi3
+    backend -->|route query| mistral
+    backend -->|route query| llama3
     backend -->|fallback| openai
     backend -->|embed| bge
     backend -->|rerank| reranker
@@ -100,26 +102,26 @@ sequenceDiagram
     participant LLM as LLM Provider
     participant DB as Supabase Postgres
 
-    B->>F: POST /chat/stream (JWT + message)
+    B->>F: POST /chat/stream with JWT and message
     F->>F: Verify Supabase JWT
     F->>S: run(query)
-    S->>Mem: retrieve(query) — load conversation context
-    Mem->>DB: fetch recent messages + summary
+    S->>Mem: retrieve(query) to load conversation context
+    Mem->>DB: fetch recent messages and summary
     S->>Ret: retrieve(augmented_query)
-    Ret->>Ret: embed (BGE-small) + BM25 in parallel
+    Ret->>Ret: embed with BGE-small and BM25 in parallel
     Ret->>Ret: RRF fusion
-    Ret->>Ret: Cross-encoder rerank → top-k passages
-    S->>R: route(query, passages) — complexity + confidence scoring
-    R-->>S: RoutingDecision (tier: simple/medium/complex/fallback)
+    Ret->>Ret: Cross-encoder rerank to top-k passages
+    S->>R: route(query, passages) with complexity and confidence scoring
+    R-->>S: RoutingDecision with tier simple/medium/complex/fallback
     S->>LLM: generate(prompt, system_with_context)
     LLM-->>S: answer text
     S->>Cit: verify(answer, passages)
     Cit-->>S: verified citations
-    S->>Mem: append(user + assistant messages)
-    Mem->>DB: persist messages; auto-summarize every 20 turns
+    S->>Mem: append user and assistant messages
+    Mem->>DB: persist messages and auto-summarize every 20 turns
     S-->>F: SupervisorResult
-    F->>DB: persist thread + citations
-    F->>B: SSE stream (text deltas + citation events)
+    F->>DB: persist thread and citations
+    F->>B: SSE stream with text deltas and citation events
 ```
 
 ---
@@ -129,22 +131,22 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     Q[User query] --> PREP[Parallel prep]
-    PREP --> BGE[BGE-small-en-v1.5\nembed query]
+    PREP --> BGE[BGE-small-en-v1.5 embed query]
     PREP --> BM25[BM25 keyword extraction]
 
-    BGE --> VEC[pgvector\ncosine semantic search]
-    BM25 --> FTS[rank_bm25\nsparse BM25 search]
+    BGE --> VEC[pgvector cosine semantic search]
+    BM25 --> FTS[rank_bm25 sparse search]
 
     VEC -->|top candidate_k| SEM_IDS[Semantic ranked IDs]
     FTS -->|top candidate_k| BM25_IDS[BM25 ranked IDs]
 
-    SEM_IDS --> RRF[Reciprocal Rank Fusion\n1÷k+rank]
+    SEM_IDS --> RRF[Reciprocal Rank Fusion]
     BM25_IDS --> RRF
 
-    RRF --> RERANK[Cross-encoder reranker\nms-marco-MiniLM-L-6-v2]
-    RERANK -->|top_k scored passages| HYDRATE[Hydrate chunks\n+ document metadata]
-    HYDRATE --> NEIGH[Fetch neighboring chunks\nfor context window]
-    NEIGH --> OUT[list[RetrievedPassage]]
+    RRF --> RERANK[Cross-encoder reranker ms-marco-MiniLM-L-6-v2]
+    RERANK -->|top_k scored passages| HYDRATE[Hydrate chunks with document metadata]
+    HYDRATE --> NEIGH[Fetch neighboring chunks for context window]
+    NEIGH --> OUT[list of RetrievedPassage]
 ```
 
 ---
@@ -153,22 +155,22 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Q[Query + passages] --> HINT{Client model hint?}
+    Q[Query and passages] --> HINT{Client model hint?}
     HINT -->|yes| DIRECT[Use hinted provider]
-    HINT -->|no| SCORE[Score complexity + confidence]
+    HINT -->|no| SCORE[Score complexity and confidence]
 
-    SCORE --> CTX{ctx_tokens > 4000?}
-    CTX -->|yes| COMPLEX[Tier: COMPLEX\nLlama 3 8B]
-    CTX -->|no| COMP{complexity ≥ 0.6?}
+    SCORE --> CTX{ctx_tokens over 4000?}
+    CTX -->|yes| COMPLEX[Tier COMPLEX - Llama 3 8B]
+    CTX -->|no| COMP{complexity over 0.6?}
     COMP -->|yes| COMPLEX
-    COMP -->|no| MED{complexity ≥ 0.3\nor confidence < 0.3?}
-    MED -->|yes| MEDIUM[Tier: MEDIUM\nMistral 7B]
-    MED -->|no| SIMPLE[Tier: SIMPLE\nPhi-3]
+    COMP -->|no| MED{complexity over 0.3 or confidence under 0.3?}
+    MED -->|yes| MEDIUM[Tier MEDIUM - Mistral 7B]
+    MED -->|no| SIMPLE[Tier SIMPLE - Phi-3]
 
     COMPLEX --> HEALTH{Provider healthy?}
     MEDIUM --> HEALTH
     SIMPLE --> HEALTH
-    HEALTH -->|no| FALLBACK[Fallback: OpenAI]
+    HEALTH -->|no| FALLBACK[Fallback - OpenAI]
     HEALTH -->|yes| GENERATE[Generate answer]
 ```
 
@@ -178,22 +180,22 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    ORCH[Chat Orchestrator\norchestrator.py] --> SUP[SupervisorAgent]
+    ORCH[Chat Orchestrator] --> SUP[SupervisorAgent]
 
-    SUP --> MEM[MemoryAgent\nretrieve conversation context]
-    SUP --> RET[RetrievalAgent\nhybrid search + rerank]
-    SUP --> ROUTER[LLM Router\nconfidence-based tier selection]
-    SUP --> CIT[CitationAgent\nverify answer ↔ passages]
+    SUP --> MEM[MemoryAgent retrieve conversation context]
+    SUP --> RET[RetrievalAgent hybrid search and rerank]
+    SUP --> ROUTER[LLM Router confidence-based tier selection]
+    SUP --> CIT[CitationAgent verify answer vs passages]
 
-    MEM --> DB_MEM[(conversations\nconversation_messages\nconversation_summaries)]
-    RET --> DB_CHUNKS[(document_chunks\npgvector + BM25)]
-    ROUTER --> PROVIDERS[Phi-3 · Mistral · Llama 3 · OpenAI]
-    CIT --> GROUNDING[GroundingValidator\ncitation ↔ passage integrity]
+    MEM --> DB_MEM[(conversations and conversation_messages and conversation_summaries)]
+    RET --> DB_CHUNKS[(document_chunks pgvector and BM25)]
+    ROUTER --> PROVIDERS[Phi-3 and Mistral and Llama 3 and OpenAI]
+    CIT --> GROUNDING[GroundingValidator citation and passage integrity]
 
-    SUP --> RESULT[SupervisorResult\nanswer + passages + citations + routing]
+    SUP --> RESULT[SupervisorResult answer and passages and citations and routing]
     RESULT --> ORCH
     ORCH --> STREAM[SSE stream to browser]
-    ORCH --> PERSIST[(chat_threads\nchat_messages\nmessage_citations)]
+    ORCH --> PERSIST[(chat_threads and chat_messages and message_citations)]
 ```
 
 ---
@@ -202,16 +204,16 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    CLIENT[MCP Client\nClaude Desktop · Cursor · VS Code] -->|MCP protocol| SERVER[FastMCP\nHARP Document Intelligence]
+    CLIENT[MCP Client Claude Desktop and Cursor and VS Code] -->|MCP protocol| SERVER[FastMCP HARP Document Intelligence]
 
-    SERVER --> T1[document_search\nhybrid retrieval tool]
-    SERVER --> T2[document_upload\ningest new documents]
-    SERVER --> T3[chat_history_lookup\nfetch conversation history]
-    SERVER --> T4[document_metadata_lookup\nfiling metadata]
+    SERVER --> T1[document_search hybrid retrieval tool]
+    SERVER --> T2[document_upload ingest new documents]
+    SERVER --> T3[chat_history_lookup fetch conversation history]
+    SERVER --> T4[document_metadata_lookup filing metadata]
 
-    SERVER --> R1[harp://collections\nlist document collections]
-    SERVER --> R2[harp://ingestion-status\ningestion pipeline status]
-    SERVER --> R3[harp://knowledge-base\nknowledge base metadata]
+    SERVER --> R1[harp://collections list document collections]
+    SERVER --> R2[harp://ingestion-status ingestion pipeline status]
+    SERVER --> R3[harp://knowledge-base knowledge base metadata]
 ```
 
 ---
@@ -229,15 +231,57 @@ erDiagram
     conversations ||--o{ conversation_messages : contains
     conversations ||--o{ conversation_summaries : summarized_by
 
-    profiles { uuid id }
-    chat_threads { uuid id; uuid user_id; text title }
-    chat_messages { uuid id; uuid thread_id; text role; text content }
-    message_citations { uuid id; uuid message_id; uuid chunk_id }
-    source_documents { uuid id; text ticker; text form; date filing_date; int fiscal_year }
-    document_chunks { uuid id; uuid document_id; int chunk_index; text text; vector embedding; tsvector search_vector }
-    conversations { uuid id; uuid thread_id; uuid user_id }
-    conversation_messages { uuid id; uuid conversation_id; text role; text content; text model_used; int latency_ms }
-    conversation_summaries { uuid id; uuid conversation_id; text summary_text }
+    profiles {
+        uuid id
+    }
+    chat_threads {
+        uuid id
+        uuid user_id
+        text title
+    }
+    chat_messages {
+        uuid id
+        uuid thread_id
+        text role
+        text content
+    }
+    message_citations {
+        uuid id
+        uuid message_id
+        uuid chunk_id
+    }
+    source_documents {
+        uuid id
+        text ticker
+        text form
+        date filing_date
+        int fiscal_year
+    }
+    document_chunks {
+        uuid id
+        uuid document_id
+        int chunk_index
+        text content
+        vector embedding
+    }
+    conversations {
+        uuid id
+        uuid thread_id
+        uuid user_id
+    }
+    conversation_messages {
+        uuid id
+        uuid conversation_id
+        text role
+        text content
+        text model_used
+        int latency_ms
+    }
+    conversation_summaries {
+        uuid id
+        uuid conversation_id
+        text summary_text
+    }
 ```
 
 ---
